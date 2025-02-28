@@ -3,17 +3,22 @@ import time
 import logging
 from random import choice
 import numpy as np
+import os
+from flask import Flask
+import threading
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-# Coinbase API credentials
-COINBASE_API_KEY = 'organizations/fe2f5935-ba3c-47a1-a9c3-1b5d403f05f3/apiKeys/cd7d0d3f-7602-4e4c-8698-ab3284046bc0'
-COINBASE_API_SECRET = '''-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIIzYQUX3LkcZ7/9XbWDAlhNz2YTsPjVBa6tyBvaN1WRaoAoGCCqGSM49
-AwEHoUQDQgAE7GLB65kdtrmwhKB9lJ2/+I59Woogmv8lFdliGuiJ8VAAL/QTOdVD
-PU7Jqeq2nAUYOz1puPkkwCBnC5G8ngiu0A==
------END EC PRIVATE KEY-----'''
+# Coinbase API credentials (hardcoded for testing; move to environment variables for production)
+COINBASE_API_KEY = "organizations/fe2f5935-ba3c-47a1-a9c3-1b5d403f05f3/apiKeys/bfda762f-9378-4ce5-8075-655b4de34d71"
+COINBASE_API_SECRET = """-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIDkG0hbyZvt3PY5I4vtH0bcnpnDlPqPxjXNZ5B+7f7jmoAoGCCqGSM49
+AwEHoUQDQgAECIzSl0bfQac0nzPYfs0+RG/TnDyoiOP0ECPP5TBtOMVhSg/viSNG
+WXdBXJIOq8Kft4Nau5E2gB7jHw2Y4kYXIQ==
+-----END EC PRIVATE KEY-----"""
+
+# Initialize the Coinbase Advanced Trade API client
 client = cb(api_key=COINBASE_API_KEY, api_secret=COINBASE_API_SECRET)
 
 # Trading parameters
@@ -35,12 +40,58 @@ low_prices = {}       # Tracks lowest price per coin in LOW_WINDOW
 price_history = {}    # Tracks prices for trend detection
 bollinger_history = {}  # Tracks prices for Bollinger Bands (longer window)
 cycles_without_trend = 0  # Track cycles without a trend
+product_details = {}  # Cache product details (e.g., base_increment)
+PAIRS = {}  # Initialize PAIRS as an empty dictionary to avoid NameError
 
 # Meme quotes
 MEME_QUOTES = {
     'buy': ["To the moon! HODL activated!", "Diamond hands, much wow!", "Bought the dip—such crypto, very gains!"],
     'sell': ["Profit secured! Lambos incoming!", "Sold the top—doge approves!", "Moon trip complete, wow!"]
 }
+
+# Create necessary files for Render deployment
+def setup_deployment_files():
+    # Create requirements.txt
+    requirements_content = """coinbase-advanced-py==1.8.2
+numpy==2.2.3
+Flask==3.0.3
+"""
+    with open('requirements.txt', 'w') as f:
+        f.write(requirements_content.strip())
+    logging.info("Created requirements.txt")
+
+    # Create Procfile (ensure no extra spaces or line endings)
+    procfile_content = "worker: python x_sentiment_bitcoin_meme_bot.py"
+    with open('Procfile', 'w') as f:
+        f.write(procfile_content + '\n')  # Ensure exactly one newline at the end
+    logging.info("Created Procfile with content: worker: python x_sentiment_bitcoin_meme_bot.py")
+
+    # Create .gitignore
+    gitignore_content = """__pycache__/
+*.pyc
+.env
+"""
+    with open('.gitignore', 'w') as f:
+        f.write(gitignore_content.strip())
+    logging.info("Created .gitignore")
+
+# Run setup for deployment files
+setup_deployment_files()
+
+# Flask app for health check to keep Render awake
+app = Flask(__name__)
+
+@app.route('/health')
+def health():
+    return "Bot is running", 200
+
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+
+# Start Flask in a separate thread
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.daemon = True
+flask_thread.start()
 
 def get_trending_coins(owned_coins):
     """Identify trending coins, new lows, or Bollinger Band oversold conditions."""
@@ -99,7 +150,10 @@ def get_trending_coins(owned_coins):
                 logging.info(f"{pair}: Change = {price_change:.2%} over {len(price_history[pair])} checks")
                 if price_change >= PRICE_RISE_THRESHOLD:
                     size = "0.001" if pair == "BTC-USD" else "0.01" if pair in ["ETH-USD", "SOL-USD"] else "10" if pair in ["DOGE-USD", "SHIB-USD"] else "1000"
-                    trending[pair] = size
+                    # Adjust size based on base_increment
+                    base_increment = product_details.get(pair, {}).get('base_increment', 0.0001)
+                    size = max(round(float(size) / base_increment) * base_increment, base_increment)
+                    trending[pair] = str(size)
                     reason = f"trend: {price_change:.2%} increase in {TREND_WINDOW//60} min"
                     logging.info(f"{pair} trending: {price_change:.2%} increase in {TREND_WINDOW//60} min")
                     trend_detected = True
@@ -109,7 +163,10 @@ def get_trending_coins(owned_coins):
                 lowest_price = min(p for t, p in low_prices[pair][:-1])  # Exclude current price
                 if current_price < lowest_price:
                     size = "0.001" if pair == "BTC-USD" else "0.01" if pair in ["ETH-USD", "SOL-USD"] else "10" if pair in ["DOGE-USD", "SHIB-USD"] else "1000"
-                    trending[pair] = size
+                    # Adjust size based on base_increment
+                    base_increment = product_details.get(pair, {}).get('base_increment', 0.0001)
+                    size = max(round(float(size) / base_increment) * base_increment, base_increment)
+                    trending[pair] = str(size)
                     reason = f"new low: {current_price:.8f} (previous low: {lowest_price:.8f}) in {(LOW_WINDOW//60)} min"
                     logging.info(f"{pair} hit new low: {current_price:.8f} (previous low: {lowest_price:.8f}) in {(LOW_WINDOW//60)} min")
                     trend_detected = True
@@ -124,7 +181,10 @@ def get_trending_coins(owned_coins):
                 logging.info(f"{pair}: SMA = {sma:.8f}, Lower Band = {lower_band:.8f}, Upper Band = {upper_band:.8f}")
                 if current_price <= lower_band:
                     size = "0.001" if pair == "BTC-USD" else "0.01" if pair in ["ETH-USD", "SOL-USD"] else "10" if pair in ["DOGE-USD", "SHIB-USD"] else "1000"
-                    trending[pair] = size
+                    # Adjust size based on base_increment
+                    base_increment = product_details.get(pair, {}).get('base_increment', 0.0001)
+                    size = max(round(float(size) / base_increment) * base_increment, base_increment)
+                    trending[pair] = str(size)
                     reason = f"Bollinger Band oversold: {current_price:.8f} <= {lower_band:.8f}"
                     logging.info(f"{pair} hit lower Bollinger Band (oversold): {current_price:.8f} <= {lower_band:.8f}")
         except Exception as e:
@@ -147,7 +207,10 @@ def get_trending_coins(owned_coins):
                         price_change = (current_price - old_price) / old_price
                         if price_change >= FALLBACK_TREND_THRESHOLD:
                             size = "0.001" if pair == "BTC-USD" else "0.01" if pair in ["ETH-USD", "SOL-USD"] else "10" if pair in ["DOGE-USD", "SHIB-USD"] else "1000"
-                            trending[pair] = size
+                            # Adjust size based on base_increment
+                            base_increment = product_details.get(pair, {}).get('base_increment', 0.0001)
+                            size = max(round(float(size) / base_increment) * base_increment, base_increment)
+                            trending[pair] = str(size)
                             reason = f"fallback: {price_change:.2%} increase in {TREND_WINDOW//60} min"
                             logging.info(f"Fallback: {pair} trending: {price_change:.2%} increase in {TREND_WINDOW//60} min")
                 except Exception as e:
@@ -183,9 +246,10 @@ def place_order(pair, side, price, size, reason):
             client_order_id=client_order_id
         )
         quote = choice(MEME_QUOTES[side])
-        logging.info(f"{pair}: {side} at {price:.8f} ({reason}) - {quote}")
+        logging.info(f"{pair}: {side} at {price:.8f} ({reason}) - {quote} - Order: {order}")
     except Exception as e:
-        logging.error(f"{pair}: Order failed: {e}")
+        logging.error(f"{pair}: Order failed: {str(e)}")
+        raise  # Re-raise the exception to debug further if needed
 
 def check_funds():
     try:
@@ -238,15 +302,21 @@ def main():
     while True:
         try:
             current_time = time.time()
-            if current_time - last_trend_update >= TREND_WINDOW:
-                usd_balance, owned_coins = check_funds()
-                if usd_balance < 1:
-                    logging.warning("Low USD balance! Pausing trades...")
-                    time.sleep(INTERVAL)
-                    continue
-                reason = update_trading_pairs(owned_coins)
-                last_trend_update = current_time
+            usd_balance, owned_coins = check_funds()  # Always check funds to get owned coins
 
+            # Update trending pairs every TREND_WINDOW (3 minutes)
+            if current_time - last_trend_update >= TREND_WINDOW:
+                # Only update pairs (which triggers buys) if USD balance is sufficient
+                if usd_balance < 0.5:
+                    logging.warning("Low USD balance! Skipping buy trades...")
+                    reason = ""
+                else:
+                    reason = update_trading_pairs(owned_coins)
+                    last_trend_update = current_time
+            else:
+                reason = ""
+
+            # Always check for sell opportunities, regardless of USD balance
             for pair, size in PAIRS.items():
                 try:
                     ticker = client.get_product(product_id=pair)
@@ -260,13 +330,15 @@ def main():
                     continue
                 logging.info(f"{pair}: Price = {current_price:.8f}, 5-min Avg = {moving_avg:.8f}")
 
-                if last_buy_prices.get(pair) is None and current_price >= moving_avg:
+                # Buy trades (only if USD balance is sufficient)
+                if last_buy_prices.get(pair) is None and current_price >= moving_avg and usd_balance >= 0.5:
                     place_order(pair, 'BUY', current_price, size, reason)
                     last_buy_prices[pair] = current_price
                     peak_prices[pair] = current_price  # Initialize peak at buy price
                     # Reset low price history after buying to avoid immediate re-buy
                     if pair in low_prices:
                         del low_prices[pair]
+                # Sell trades (always allowed, regardless of USD balance)
                 elif last_buy_prices.get(pair) is not None:
                     # Update peak price
                     peak_prices[pair] = max(peak_prices.get(pair, current_price), current_price)
