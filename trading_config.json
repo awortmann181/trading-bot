@@ -21,7 +21,7 @@
     "minimum_reserve": 5.0,
     "pause_duration": 600,
     "trade_size_usd": 30.0,
-    "force_sell_timeout": 1800,
+    "force_sell_timeout": 900,
     "rsi_buy_threshold": 75,
     "trading_pairs": [
         "BTC-USD",
