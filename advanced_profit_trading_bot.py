@@ -201,6 +201,13 @@ def load_state():
         total_profit = 0.0
     logging.info(f"Loaded state: {total_positions} positions, Total Profit: ${total_profit:.2f}")
 
+import os
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(f"COINBASE_API_KEY: {os.getenv('COINBASE_API_KEY')}")
+logger.info(f"COINBASE_API_SECRET: {os.getenv('COINBASE_API_SECRET')}")
+
 client = cb(api_key=os.getenv('COINBASE_API_KEY'), api_secret=os.getenv('COINBASE_API_SECRET'))
 
 app = Flask(__name__)
