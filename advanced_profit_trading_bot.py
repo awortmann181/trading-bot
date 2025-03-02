@@ -208,7 +208,7 @@ logger = logging.getLogger(__name__)
 logger.info(f"COINBASE_API_KEY: {os.getenv('COINBASE_API_KEY')}")
 logger.info(f"COINBASE_API_SECRET: {os.getenv('COINBASE_API_SECRET')}")
 
-client = cb(api_key=os.getenv('COINBASE_API_KEY'), api_secret=os.getenv('COINBASE_API_SECRET'))
+client = cb(api_key=os.getenv(organizations/fe2f5935-ba3c-47a1-a9c3-1b5d403f05f3/apiKeys/bfda762f-9378-4ce5-8075-655b4de34d71), api_secret=os.getenv(-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIDkG0hbyZvt3PY5I4vtH0bcnpnDlPqPxjXNZ5B+7f7jmoAoGCCqGSM49\nAwEHoUQDQgAECIzSl0bfQac0nzPYfs0+RG/TnDyoiOP0ECPP5TBtOMVhSg/viSNG\nWXdBXJIOq8Kft4Nau5E2gB7jHw2Y4kYXIQ==\n-----END EC PRIVATE KEY-----))
 
 app = Flask(__name__)
 
