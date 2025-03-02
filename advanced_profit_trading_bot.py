@@ -1,4 +1,4 @@
-from coinbase_advanced_api import RESTClient as cb
+from coinbase.rest import RESTClient as cb
 import time
 import logging
 import logging.handlers
