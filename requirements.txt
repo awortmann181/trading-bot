@@ -1,4 +1,4 @@
 requests
 numpy
 flask
-coinbase-advanced-api
+coinbase-advanced-py
