@@ -20,26 +20,15 @@
     "critical_low_threshold": 1.0,
     "minimum_reserve": 5.0,
     "pause_duration": 600,
-    "trading_pairs": [
-        "BTC-USD",
-        "BONK-USD",
-        "PNUT-USD",
-        "KAITO-USD",
-        "TURBO-USD",
-        "MOODENG-USD",
-        "DOGE-USD",
-        "XRP-USD",
-        "ETH-USD",
-        "SOL-USD",
-        "ADA-USD",
-        "SHIB-USD",
-        "PEPE-USD",
-        "WIF-USD",
-        "FLOKI-USD",
-        "MOG-USD"
-    ],
-    "paper_trading": false,
     "trade_size_usd": 30.0,
     "force_sell_timeout": 1800,
-    "rsi_buy_threshold": 75
+    "rsi_buy_threshold": 75,
+    "trading_pairs": [
+        "BTC-USD",
+        "BONK-USD", "PNUT-USD", "KAITO-USD", "TURBO-USD",
+        "MOODENG-USD", "DOGE-USD", "XRP-USD",
+        "ETH-USD", "SOL-USD", "ADA-USD", "SHIB-USD", "PEPE-USD",
+        "WIF-USD", "FLOKI-USD", "MOG-USD"
+    ],
+    "paper_trading": false
 }
